@@ -60,6 +60,15 @@ UPTIME_KUMA_USERNAME=admin
 UPTIME_KUMA_PASSWORD=...
 ```
 
+> **Login falha alto e acionável.** O caminho de escrita **nunca** segue com sessão
+> não-autenticada (era o bug que devolvia `{}` em silêncio). Se o servidor rejeita o
+> login, o erro distingue as duas causas e some o palpite:
+> - `authIncorrectCreds` → usuário/senha **stale ou incorretos** (o usuário não é
+>   necessariamente `admin` — confira o `.env` contra a instância).
+> - mensagem de `token`/`2FA` → a conta tem **2FA ativo**; o login Socket.io exige TOTP.
+>   Use uma conta de serviço sem 2FA para a automação.
+> A resposta crua do servidor sempre vem anexada à mensagem.
+
 ## Comandos
 
 ### Ver status de todos os monitores

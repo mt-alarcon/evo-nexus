@@ -122,6 +122,30 @@ def _parse_metrics(raw: str) -> list[dict]:
 
 # ── Socket.io client (WebSocket via python-socketio) ──────────────────────────
 
+def _login_hint(resp: Any) -> str:
+    """Translate a rejected login ack into an actionable diagnosis.
+
+    The two failure modes need different fixes, so the message must tell them
+    apart instead of just echoing the raw payload (the gap that made the auth
+    failure opaque): wrong/stale credentials vs. 2FA enabled on the account.
+    The raw ack is always appended so nothing is hidden.
+    """
+    raw = json.dumps(resp, ensure_ascii=False)
+    msg = (resp.get("msg") if isinstance(resp, dict) else "") or ""
+    low = msg.lower()
+    if "token" in low or "2fa" in low or "twofa" in low:
+        hint = ("2FA está ativo nesta conta — o login Socket.io exige o código TOTP "
+                "(o cliente envia token vazio). Desative o 2FA do usuário de serviço "
+                "ou use uma conta sem 2FA para a automação.")
+    elif "incorrectcreds" in low or "credential" in low or "password" in low:
+        hint = ("credenciais rejeitadas — UPTIME_KUMA_USERNAME/PASSWORD stale ou "
+                "incorretos. Confira o usuário (não é necessariamente 'admin') e a "
+                "senha no .env contra a instância.")
+    else:
+        hint = "login rejeitado pelo servidor."
+    return f"{hint} (resposta do servidor: {raw})"
+
+
 class UKSocket:
     """Socket.io client over WebSocket using python-socketio.
 
@@ -168,7 +192,7 @@ class UKSocket:
             timeout=15,
         )
         if not (isinstance(resp, dict) and resp.get("ok")):
-            raise RuntimeError(f"login failed: {json.dumps(resp)}")
+            raise RuntimeError(f"login failed: {_login_hint(resp)}")
         return resp
 
     def call(self, event: str, *args) -> Any:

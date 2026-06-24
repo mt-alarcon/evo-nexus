@@ -333,6 +333,36 @@ class TestLogin:
         assert "connect failed" in str(e.value)
 
 
+# ── _login_hint (auth failure is actionable, not opaque) ──────────────────────
+
+class TestLoginHint:
+    def test_bad_creds_hint(self, uk):
+        h = uk._login_hint({"ok": False, "msg": "authIncorrectCreds"})
+        assert "stale" in h or "incorretos" in h
+        assert "authIncorrectCreds" in h  # raw payload preserved
+
+    def test_2fa_hint(self, uk):
+        h = uk._login_hint({"ok": False, "msg": "Token required for 2FA"})
+        assert "2FA" in h
+
+    def test_unknown_hint_keeps_raw(self, uk):
+        h = uk._login_hint({"ok": False, "msg": "weird"})
+        assert "weird" in h
+
+    def test_non_dict_hint(self, uk):
+        h = uk._login_hint(None)
+        assert "null" in h  # json.dumps(None) -> "null"
+
+    def test_login_failure_message_is_actionable(self, uk, fake_socketio):
+        """The raised error must carry the actionable hint, not just the raw ack."""
+        fake_socketio.acks["login"] = {"ok": False, "msg": "authIncorrectCreds"}
+        s = uk.UKSocket()
+        s.connect()
+        with pytest.raises(RuntimeError) as e:
+            s.login()
+        assert "stale" in str(e.value) or "incorretos" in str(e.value)
+
+
 # ── _socket_session (auth gate) ───────────────────────────────────────────────
 
 class TestSocketSession:
